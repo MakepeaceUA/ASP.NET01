@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Xml.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Animals
+namespace AnimalApp
 {
     public interface IAnimal
     {
