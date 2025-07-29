@@ -5,193 +5,241 @@ using System.Text.Json;
 using System.Xml.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ConsoleApp58
+namespace GeometryApp
 {
-    public interface IAnimal
+    public interface ICanvasShape
     {
         string Name { get; }
-        string Sound { get; }
-        void Display();
+        string Render();
+        void Display(IOutput output);
     }
-
-    public class AnimalModel
+    public class ShapeModel
     {
         public string Type { get; set; } = "";
     }
 
-    public class Dog : IAnimal
+    public class Circle : ICanvasShape
     {
-        public string Name => "Собака";
-        public string Sound => "Гав-гав";
-        public void Display() => Console.WriteLine($"{Name}: {Sound}");
-    }
+        public string Name => "Круг";
+        public string Render() => "   ***   \n *     * \n *     * \n   ***   ";
 
-    public class Cat : IAnimal
-    {
-        public string Name => "Кошка";
-        public string Sound => "Мяу";
-        public void Display() => Console.WriteLine($"{Name}: {Sound}");
-    }
-
-    public class Cow : IAnimal
-    {
-        public string Name => "Корова";
-        public string Sound => "Мууу";
-        public void Display() => Console.WriteLine($"{Name}: {Sound}");
-    }
-
-    public interface IAnimalSerializer
-    {
-        void Serialize(List<IAnimal> animals, string filePath);
-        List<IAnimal> Deserialize(string filePath);
-    }
-
-    public class JsonAnimalSerializer : IAnimalSerializer
-    {
-        public void Serialize(List<IAnimal> animals, string filePath)
+        public void Display(IOutput output)
         {
-            var models = new List<AnimalModel>();
-            foreach (var animal in animals)
-                models.Add(new AnimalModel { Type = animal.GetType().Name });
+            output.WriteLine($"Фигура: {Name}");
+            output.WriteLine(Render());
+        }
+    }
+
+    public class Square : ICanvasShape
+    {
+        public string Name => "Квадрат";
+        public string Render() => "*****\n*   *\n*   *\n*****";
+
+        public void Display(IOutput output)
+        {
+            output.WriteLine($"Фигура: {Name}");
+            output.WriteLine(Render());
+        }
+    }
+
+    public class Triangle : ICanvasShape
+    {
+        public string Name => "Треугольник";
+        public string Render() => "  *  \n * * \n*****";
+
+        public void Display(IOutput output)
+        {
+            output.WriteLine($"Фигура: {Name}");
+            output.WriteLine(Render());
+        }
+    }
+    public interface IOutput
+    {
+        void WriteLine(string line);
+    }
+    public class ConsoleOutput : IOutput
+    {
+        public void WriteLine(string line) => Console.WriteLine(line);
+    }
+
+    public class FileOutput : IOutput, IDisposable
+    {
+        private readonly StreamWriter writer;
+        public FileOutput(string path)
+        {
+            writer = new StreamWriter(path, false);
+        }
+
+        public void WriteLine(string line)
+        {
+            writer.WriteLine(line);
+        }
+
+        public void Dispose()
+        {
+            writer?.Close();
+            writer?.Dispose();
+        }
+    }
+
+    public interface IShapeSerializer
+    {
+        void Serialize(List<ICanvasShape> shapes, string filePath);
+        List<ICanvasShape> Deserialize(string filePath);
+    }
+    public class JsonShapeSerializer : IShapeSerializer
+    {
+        public void Serialize(List<ICanvasShape> shapes, string filePath)
+        {
+            var models = new List<ShapeModel>();
+            foreach (var shape in shapes)
+                models.Add(new ShapeModel { Type = shape.GetType().Name });
 
             var json = JsonSerializer.Serialize(models);
             File.WriteAllText(filePath, json);
         }
 
-        public List<IAnimal> Deserialize(string filePath)
+        public List<ICanvasShape> Deserialize(string filePath)
         {
             var json = File.ReadAllText(filePath);
-            var models = JsonSerializer.Deserialize<List<AnimalModel>>(json);
-            return AnimalFactory.CreateAnimals(models);
+            var models = JsonSerializer.Deserialize<List<ShapeModel>>(json);
+            return ShapeFactory.CreateShapes(models);
         }
     }
 
-    public class XmlAnimalSerializer : IAnimalSerializer
+    public class XmlShapeSerializer : IShapeSerializer
     {
-        public void Serialize(List<IAnimal> animals, string filePath)
+        public void Serialize(List<ICanvasShape> shapes, string filePath)
         {
-            var models = new List<AnimalModel>();
-            foreach (var animal in animals)
-                models.Add(new AnimalModel { Type = animal.GetType().Name });
+            var models = new List<ShapeModel>();
+            foreach (var shape in shapes)
+                models.Add(new ShapeModel { Type = shape.GetType().Name });
 
-            var serializer = new XmlSerializer(typeof(List<AnimalModel>));
-
+            var serializer = new XmlSerializer(typeof(List<ShapeModel>));
             using var fs = new FileStream(filePath, FileMode.Create);
             serializer.Serialize(fs, models);
         }
 
-        public List<IAnimal> Deserialize(string filePath)
+        public List<ICanvasShape> Deserialize(string filePath)
         {
-            var serializer = new XmlSerializer(typeof(List<AnimalModel>));
+            var serializer = new XmlSerializer(typeof(List<ShapeModel>));
             using var fs = new FileStream(filePath, FileMode.Open);
-            var models = (List<AnimalModel>)serializer.Deserialize(fs)!;
-            return AnimalFactory.CreateAnimals(models);
+            var models = (List<ShapeModel>)serializer.Deserialize(fs)!;
+            return ShapeFactory.CreateShapes(models);
         }
     }
 
-    public static class AnimalFactory
+    public static class ShapeFactory
     {
-        public static IAnimal CreateAnimal(string type) =>
+        public static ICanvasShape CreateShape(string type) =>
             type switch
             {
-                nameof(Dog) => new Dog(),
-                nameof(Cat) => new Cat(),
-                nameof(Cow) => new Cow(),
-                _ => throw new InvalidOperationException($"Неизвестный тип животного: {type}")
+                nameof(Circle) => new Circle(),
+                nameof(Square) => new Square(),
+                nameof(Triangle) => new Triangle(),
+                _ => throw new InvalidOperationException($"Неизвестный тип фигуры: {type}")
             };
 
-        public static List<IAnimal> CreateAnimals(IEnumerable<AnimalModel> models)
+        public static List<ICanvasShape> CreateShapes(IEnumerable<ShapeModel> models)
         {
-            var list = new List<IAnimal>();
+            var list = new List<ICanvasShape>();
             foreach (var model in models)
             {
-                list.Add(CreateAnimal(model.Type));
+                list.Add(CreateShape(model.Type));
             }
             return list;
         }
     }
 
-    public interface IAnimalStorageService
+    public interface IShapeStorageService
     {
-        void SaveAnimals(List<IAnimal> animals, string filePath);
-        List<IAnimal> LoadAnimals(string filePath);
-    }
-    public class FileAnimalStorageService : IAnimalStorageService
-    {
-        private readonly IAnimalSerializer _serializer;
-        public FileAnimalStorageService(IAnimalSerializer serializer) => _serializer = serializer;
-
-        public void SaveAnimals(List<IAnimal> animals, string filePath) => _serializer.Serialize(animals, filePath);
-
-        public List<IAnimal> LoadAnimals(string filePath) => _serializer.Deserialize(filePath);
+        void Save(List<ICanvasShape> shapes, string filePath);
+        List<ICanvasShape> Load(string filePath);
     }
 
-    public class AnimalService
+    public class FileShapeStorageService : IShapeStorageService
     {
-        private readonly IAnimalStorageService StorageService;
+        private readonly IShapeSerializer serializer;
 
-        public AnimalService(IAnimalStorageService service)
+        public FileShapeStorageService(IShapeSerializer serializer)
         {
-            StorageService = service;
+            this.serializer = serializer;
         }
 
-        public void Run(string filePath)
-        {
-            var animals = new List<IAnimal> { new Dog(), new Cat(), new Cow() };
-
-            StorageService.SaveAnimals(animals, filePath);
-            Console.WriteLine($"Файл сохранён по пути: {Path.GetFullPath(filePath)}");
-            Console.WriteLine("Животные сохранены.\n");
-
-            var LoadedAnimals = StorageService.LoadAnimals(filePath);
-            Console.WriteLine("Загруженные животные:");
-            foreach (var animal in LoadedAnimals) 
-            {
-                animal.Display();
-            }
-                
-        }
+        public void Save(List<ICanvasShape> shapes, string filePath) => serializer.Serialize(shapes, filePath);
+        public List<ICanvasShape> Load(string filePath) => serializer.Deserialize(filePath);
     }
 
+    public class ShapeService
+    {
+        private readonly IShapeStorageService StorageService;
+        private readonly IServiceProvider Provider;
+
+        public ShapeService(IShapeStorageService storageService, IServiceProvider provider)
+        {
+            StorageService = storageService;
+            Provider = provider;
+        }
+
+        public void Run(string format, string outputType)
+        {
+            var shapes = new List<ICanvasShape> { new Circle(), new Square(), new Triangle() };
+
+            string DataFile = $"shapes.{format}";
+            StorageService.Save(shapes, DataFile);
+            Console.WriteLine($"Фигуры сохранены в файл: {Path.GetFullPath(DataFile)}");
+
+            var LoadedShapes = StorageService.Load(DataFile);
+
+            string RenderFile = "render.txt";
+            IOutput output = outputType == "file"
+                ? new FileOutput(RenderFile)
+                : Provider.GetRequiredService<IOutput>();
+
+            foreach (var shape in LoadedShapes)
+                shape.Display(output);
+
+            if (output is IDisposable disposable)
+                disposable.Dispose();
+
+            if (outputType == "file")
+                Console.WriteLine($"Рендер сохранён в файл: {Path.GetFullPath(RenderFile)}");
+        }
+    }
     class Program
     {
         static void Main()
         {
-            Console.WriteLine("Выберите формат для сохранения животных (json / xml):");
-            string? input = Console.ReadLine()?.Trim().ToLower();
+            Console.WriteLine("Выберите формат сериализации (json/xml):");
+            string? format = Console.ReadLine()?.Trim().ToLower();
+
+            Console.WriteLine("Куда вывести результат? (console/file):");
+            string? outputType = Console.ReadLine()?.Trim().ToLower();
 
             var services = new ServiceCollection();
 
-            string extension;
-            switch (input)
+            services.AddSingleton<IOutput, ConsoleOutput>();
+
+            switch (format)
             {
-                case "json":
-                    services.AddSingleton<IAnimalSerializer, JsonAnimalSerializer>();
-                    extension = ".json";
-                    break;
-
                 case "xml":
-                    services.AddSingleton<IAnimalSerializer, XmlAnimalSerializer>();
-                    extension = ".xml";
+                    services.AddSingleton<IShapeSerializer, XmlShapeSerializer>();
                     break;
-
+                case "json":
                 default:
-                    Console.WriteLine("Неверный формат. Используется JSON по умолчанию.");
-                    services.AddSingleton<IAnimalSerializer, JsonAnimalSerializer>();
-                    extension = ".json";
+                    services.AddSingleton<IShapeSerializer, JsonShapeSerializer>();
                     break;
             }
 
-            services.AddSingleton<IAnimalStorageService, FileAnimalStorageService>();
-            services.AddTransient<AnimalService>();
+            services.AddSingleton<IShapeStorageService, FileShapeStorageService>();
+            services.AddTransient<ShapeService>();
 
             var provider = services.BuildServiceProvider();
 
-            string filePath = $"animals{extension}";
+            var service = provider.GetRequiredService<ShapeService>();
+            service.Run(format ?? "json", outputType ?? "console");
 
-            var AnService = provider.GetRequiredService<AnimalService>();
-            AnService.Run(filePath);
-
+            Console.WriteLine("\nГотово. Нажмите любую клавишу...");
             Console.ReadKey();
         }
     }
